@@ -75,6 +75,30 @@ With the credentials, you can update the TXT response in the service to match th
 }
 ```
 
+### Delete registration endpoint
+
+The method removes the authenticated registration and all TXT records for its subdomain. After deletion, the same API credentials no longer work and the subdomain name can be assigned to a new registration.
+
+```DELETE /registration```
+
+#### Required headers
+| Header name   | Description                                | Example                                               |
+| ------------- |--------------------------------------------|-------------------------------------------------------|
+| X-Api-User    | UUIDv4 username received from registration | `X-Api-User: c36f50e8-4632-44f0-83fe-e070fef28a10`    |
+| X-Api-Key     | Password received from registration        | `X-Api-Key: htB9mR9DYgcu9bX_afHF62erXaH2TS7bg9KW3F7Z` |
+
+No request body is required.
+
+#### Response
+
+```Status: 200 OK```
+```json
+{
+    "message": "deleted",
+    "subdomain": "8e5700ea-a4bf-41c7-8a77-e990661dcc6a"
+}
+```
+
 ### Update endpoint
 
 The method allows you to update the TXT answer contents of your unique subdomain. Usually carried automatically by automated ACME client.

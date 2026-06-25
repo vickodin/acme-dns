@@ -62,6 +62,29 @@ func (a *AcmednsAPI) Auth(update httprouter.Handle) httprouter.Handle {
 	}
 }
 
+// AuthDelete middleware for DELETE /registration (credentials only, no request body).
+func (a *AcmednsAPI) AuthDelete(handler httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		user, err := a.getUserFromRequest(r)
+		if err != nil {
+			a.Logger.Errorw("Error while trying to get user",
+				"error", err.Error())
+		} else if !a.updateAllowedFromIP(r, user) {
+			a.Logger.Errorw("Delete not allowed from IP",
+				"error", "ip_unauthorized")
+			err = fmt.Errorf("ip unauthorized")
+		}
+		if err == nil {
+			ctx := context.WithValue(r.Context(), ACMETxtKey, user)
+			handler(w, r.WithContext(ctx), p)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write(jsonError("forbidden"))
+	}
+}
+
 func (a *AcmednsAPI) getUserFromRequest(r *http.Request) (acmedns.ACMETxt, error) {
 	uname := r.Header.Get("X-Api-User")
 	passwd := r.Header.Get("X-Api-Key")
