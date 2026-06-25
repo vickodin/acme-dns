@@ -273,6 +273,62 @@ func (d *acmednsdb) Register(afrom acmedns.Cidrslice) (acmedns.ACMETxt, error) {
 	return a, err
 }
 
+func (d *acmednsdb) Unregister(u uuid.UUID) error {
+	d.Mutex.Lock()
+	defer d.Mutex.Unlock()
+
+	var subdomain string
+	lookupSQL := `SELECT Subdomain FROM records WHERE Username=$1 LIMIT 1`
+	if d.Config.Database.Engine == "sqlite" {
+		lookupSQL = getSQLiteStmt(lookupSQL)
+	}
+	err := d.DB.QueryRow(lookupSQL, u.String()).Scan(&subdomain)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("user not found: %s", u.String())
+	}
+	if err != nil {
+		return fmt.Errorf("failed to look up user: %w", err)
+	}
+
+	tx, err := d.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+			return
+		}
+		_ = tx.Commit()
+	}()
+
+	delTxtSQL := `DELETE FROM txt WHERE Subdomain=$1`
+	if d.Config.Database.Engine == "sqlite" {
+		delTxtSQL = getSQLiteStmt(delTxtSQL)
+	}
+	_, err = tx.Exec(delTxtSQL, subdomain)
+	if err != nil {
+		return fmt.Errorf("failed to delete txt records: %w", err)
+	}
+
+	delRecSQL := `DELETE FROM records WHERE Username=$1`
+	if d.Config.Database.Engine == "sqlite" {
+		delRecSQL = getSQLiteStmt(delRecSQL)
+	}
+	result, err := tx.Exec(delRecSQL, u.String())
+	if err != nil {
+		return fmt.Errorf("failed to delete registration: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to read rows affected: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("user not found: %s", u.String())
+	}
+	return nil
+}
+
 func (d *acmednsdb) GetByUsername(u uuid.UUID) (acmedns.ACMETxt, error) {
 	d.Mutex.RLock()
 	defer d.Mutex.RUnlock()

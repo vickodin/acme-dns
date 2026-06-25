@@ -75,7 +75,7 @@ func setupRouter(debug bool, noauth bool) (http.Handler, AcmednsAPI, acmedns.Acm
 	adnsapi := Init(&config, db, logger, errChan)
 	c := cors.New(cors.Options{
 		AllowedOrigins:     config.API.CorsOrigins,
-		AllowedMethods:     []string{"GET", "POST"},
+		AllowedMethods:     []string{"GET", "POST", "DELETE"},
 		OptionsPassthrough: false,
 		Debug:              config.General.Debug,
 	})
@@ -83,8 +83,10 @@ func setupRouter(debug bool, noauth bool) (http.Handler, AcmednsAPI, acmedns.Acm
 	api.GET("/health", adnsapi.healthCheck)
 	if noauth {
 		api.POST("/update", noAuth(adnsapi.webUpdatePost))
+		api.DELETE("/registration", noAuth(adnsapi.webRegistrationDelete))
 	} else {
 		api.POST("/update", adnsapi.Auth(adnsapi.webUpdatePost))
+		api.DELETE("/registration", adnsapi.AuthDelete(adnsapi.webRegistrationDelete))
 	}
 	return c.Handler(api), adnsapi, db
 }
@@ -446,6 +448,49 @@ func TestApiHealthCheck(t *testing.T) {
 	defer server.Close()
 	e := getExpect(t, server)
 	e.GET("/health").Expect().Status(http.StatusOK)
+}
+
+func TestApiRegistrationDelete(t *testing.T) {
+	router, _, db := setupRouter(false, false)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	e := getExpect(t, server)
+
+	reg, err := db.Register(acmedns.Cidrslice{})
+	if err != nil {
+		t.Fatalf("Could not create user: %v", err)
+	}
+
+	e.DELETE("/registration").
+		WithHeader("X-Api-User", reg.Username.String()).
+		WithHeader("X-Api-Key", reg.Password).
+		WithHeader("X-Forwarded-For", "10.1.2.3").
+		Expect().
+		Status(http.StatusOK).
+		JSON().Object().
+		ContainsKey("message").
+		ContainsKey("subdomain").
+		ValueEqual("message", "deleted").
+		ValueEqual("subdomain", reg.Subdomain)
+
+	_, err = db.GetByUsername(reg.Username)
+	if err == nil {
+		t.Error("expected user to be removed from database")
+	}
+
+	e.DELETE("/registration").
+		WithHeader("X-Api-User", reg.Username.String()).
+		WithHeader("X-Api-Key", reg.Password).
+		WithHeader("X-Forwarded-For", "10.1.2.3").
+		Expect().
+		Status(http.StatusUnauthorized)
+
+	e.DELETE("/registration").
+		WithHeader("X-Api-User", reg.Username.String()).
+		WithHeader("X-Api-Key", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").
+		WithHeader("X-Forwarded-For", "10.1.2.3").
+		Expect().
+		Status(http.StatusUnauthorized)
 }
 
 func TestGetIPListFromHeader(t *testing.T) {

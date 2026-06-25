@@ -71,7 +71,7 @@ func (a *AcmednsAPI) Start(dnsservers []acmedns.AcmednsNS) {
 	api := httprouter.New()
 	c := cors.New(cors.Options{
 		AllowedOrigins:     a.Config.API.CorsOrigins,
-		AllowedMethods:     []string{"GET", "POST"},
+		AllowedMethods:     []string{"GET", "POST", "DELETE"},
 		OptionsPassthrough: false,
 		Debug:              a.Config.General.Debug,
 	})
@@ -83,6 +83,7 @@ func (a *AcmednsAPI) Start(dnsservers []acmedns.AcmednsNS) {
 		api.POST("/register", a.hstsMiddleware(a.webRegisterPost))
 	}
 	api.POST("/update", a.hstsMiddleware(a.Auth(a.webUpdatePost)))
+	api.DELETE("/registration", a.hstsMiddleware(a.AuthDelete(a.webRegistrationDelete)))
 	api.GET("/health", a.hstsMiddleware(a.healthCheck))
 
 	host := a.Config.API.IP + ":" + a.Config.API.Port

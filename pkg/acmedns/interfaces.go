@@ -8,6 +8,7 @@ import (
 
 type AcmednsDB interface {
 	Register(cidrslice Cidrslice) (ACMETxt, error)
+	Unregister(uuid.UUID) error
 	GetByUsername(uuid.UUID) (ACMETxt, error)
 	GetTXTForDomain(string) ([]string, error)
 	Update(ACMETxtPost) error

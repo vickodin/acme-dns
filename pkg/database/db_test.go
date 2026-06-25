@@ -103,6 +103,45 @@ func TestGetByUsername(t *testing.T) {
 	}
 }
 
+func TestUnregister(t *testing.T) {
+	DB := fakeDB()
+	reg, err := DB.Register(acmedns.Cidrslice{})
+	if err != nil {
+		t.Fatalf("Registration failed: %v", err)
+	}
+
+	txts, err := DB.GetTXTForDomain(reg.Subdomain)
+	if err != nil {
+		t.Fatalf("GetTXTForDomain failed: %v", err)
+	}
+	if len(txts) != 2 {
+		t.Fatalf("expected 2 txt rows, got %d", len(txts))
+	}
+
+	err = DB.Unregister(reg.Username)
+	if err != nil {
+		t.Fatalf("Unregister failed: %v", err)
+	}
+
+	_, err = DB.GetByUsername(reg.Username)
+	if err == nil {
+		t.Error("expected error after unregister, got none")
+	}
+
+	txts, err = DB.GetTXTForDomain(reg.Subdomain)
+	if err != nil {
+		t.Fatalf("GetTXTForDomain failed: %v", err)
+	}
+	if len(txts) != 0 {
+		t.Errorf("expected no txt rows after unregister, got %d", len(txts))
+	}
+
+	err = DB.Unregister(reg.Username)
+	if err == nil {
+		t.Error("expected error unregistering again, got none")
+	}
+}
+
 func TestPrepareErrors(t *testing.T) {
 	DB := fakeDB()
 	reg, _ := DB.Register(acmedns.Cidrslice{})
